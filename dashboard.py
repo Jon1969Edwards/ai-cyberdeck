@@ -460,7 +460,7 @@ def api_wifi_scan():
 def api_channels():
     nets = parse_nmcli_wifi()
 
-    # Count 2.4GHz channels 1–13 only
+    # Count 2.4GHz channels 1–13
     counts = {str(ch): 0 for ch in range(1, 14)}
     total = 0
     strongest = None  # (signal_int, channel_str)
@@ -482,16 +482,16 @@ def api_channels():
     rows.sort(key=lambda r: r["channel"])
     max_count = max(counts.values()) if counts else 0
 
-    # Suggest the least crowded among 1/6/11
+    # Suggest the least-crowded among 1/6/11 (classic 2.4 choices)
     candidates = ["1", "6", "11"]
-    suggested = min(candidates, key=lambda c: counts.get(c, 999))
+    best = min(candidates, key=lambda c: counts.get(c, 999))
 
     return jsonify({
         "channels": rows,
         "max_count": max_count,
         "total_networks": total,
         "strongest_channel": (strongest[1] if strongest else None),
-        "suggested": suggested,
+        "suggested": best,
         "ts": int(time.time()),
     })
 
