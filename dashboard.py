@@ -80,6 +80,8 @@ HOME_PAGE = """
   <div class="row">
     <button class="btn" onclick="location.reload()">Refresh</button>
     <button class="btn" onclick="toggleFullscreen()">Fullscreen</button>
+    <button class="btn" id="handshakeBtn" onclick="toggleHandshake()">Start Handshake Capture</button>
+    <span id="handshakeStatus" class="muted"></span>
   </div>
 
 <script>
@@ -96,6 +98,35 @@ async function tick(){
 function toggleFullscreen(){
   if (!document.fullscreenElement) document.documentElement.requestFullscreen();
   else document.exitFullscreen();
+}
+
+let handshakeRunning = false;
+async function toggleHandshake() {
+  const btn = document.getElementById('handshakeBtn');
+  const status = document.getElementById('handshakeStatus');
+  if (!handshakeRunning) {
+    btn.disabled = true;
+    status.textContent = 'Starting...';
+    const r = await fetch('/api/handshake/start', {method:'POST'});
+    const data = await r.json();
+    if (r.ok) {
+      handshakeRunning = true;
+      btn.textContent = 'Stop Handshake Capture';
+      status.textContent = 'Capturing: ' + data.file;
+    } else {
+      status.textContent = data.status || 'Error';
+    }
+    btn.disabled = false;
+  } else {
+    btn.disabled = true;
+    status.textContent = 'Stopping...';
+    const r = await fetch('/api/handshake/stop', {method:'POST'});
+    const data = await r.json();
+    handshakeRunning = false;
+    btn.textContent = 'Start Handshake Capture';
+    status.textContent = data.status || 'Stopped';
+    btn.disabled = false;
+  }
 }
 tick();
 setInterval(tick, 1500);
