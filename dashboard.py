@@ -430,13 +430,13 @@ def parse_nmcli_wifi() -> list[dict]:
     # We'll try wlan1 first, then fallback.
     cmd_wlan1 = [
         "nmcli", "-t",
-        "-f", "SSID,SIGNAL,SECURITY,CHAN",
+        "-f", "SSID,SIGNAL,SECURITY,CHAN,BSSID",
         "dev", "wifi", "list",
         "ifname", "wlan1"
     ]
     cmd_any = [
         "nmcli", "-t",
-        "-f", "SSID,SIGNAL,SECURITY,CHAN",
+        "-f", "SSID,SIGNAL,SECURITY,CHAN,BSSID",
         "dev", "wifi", "list"
     ]
 
@@ -460,11 +460,19 @@ def parse_nmcli_wifi() -> list[dict]:
         security = parts[2].strip() or "—"
         chan = ":".join(parts[3:]).strip()
 
+        # Add BSSID if available (nmcli -f BSSID,...)
+        bssid = None
+        if 'BSSID' in raw or len(parts) > 4:
+            bssid = parts[4].strip() if len(parts) > 4 else None
+        # For now, try to get BSSID with a second nmcli call if not present
+        # (or you can extend the nmcli call to include BSSID)
+
         networks.append({
             "ssid": ssid,
             "signal": (signal + "%") if signal else "",
             "security": security,
             "chan": chan,
+            "bssid": bssid or "",
         })
 
     def sig_num(n):
