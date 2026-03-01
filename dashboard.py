@@ -3,6 +3,7 @@ import psutil
 import shutil
 import subprocess
 import time
+import requests
 
 app = Flask(__name__)
 
@@ -498,32 +499,47 @@ def api_channels():
 @app.post("/api/assistant")
 def api_assistant():
     payload = request.get_json(force=True, silent=True) or {}
-    q = (payload.get("q") or "").strip().lower()
+    q = (payload.get("q") or "").strip()
 
     status = api_status().json
 
-    if q == "" or "summarize" in q or "status" in q:
+    if q.strip() == "" or "summarize" in q.lower() or "status" in q.lower():
         reply = (
             f"CPU {status['cpu']}%, temp {status['temp_c']}°C, "
             f"RAM {status['ram_used_gb']}/{status['ram_total_gb']} GB, "
             f"disk {status['disk_used_gb']}/{status['disk_total_gb']} GB. "
             f"Uptime {status['uptime']}. IP {status['ip']}."
         )
-    elif "channels" in q:
+    elif "channels" in q.lower():
         ch = api_channels().json
         reply = (
             f"2.4GHz channel crowding: suggested channel {ch['suggested']}. "
             f"Strongest network is on channel {ch['strongest_channel'] or '—'}. "
             f"Total counted on channels 1–13: {ch['total_networks']}."
         )
-    elif "wifi" in q:
+    elif "wifi" in q.lower():
         nets = parse_nmcli_wifi()
         top = nets[0] if nets else None
         reply = "Open the Wi-Fi page to scan nearby networks. "
         if top:
             reply += f"Strongest right now: {top['ssid']} ({top['signal']}, ch {top.get('chan','?')}, {top['security']})."
     else:
-        reply = "Try: 'summarize status', 'wifi status', or 'channels summary'. (Local LLM comes next.)"
+        # Forward to local Ollama LLM
+        try:
+            ollama_url = "http://127.0.0.1:11434/api/generate"
+            ollama_payload = {
+                "model": "phi",
+                "prompt": q,
+                "stream": False
+            }
+            ollama_response = requests.post(ollama_url, json=ollama_payload, timeout=30)
+            if ollama_response.ok:
+                data = ollama_response.json()
+                reply = data.get("response", "(No response from LLM)")
+            else:
+                reply = f"LLM error: {ollama_response.status_code}"
+        except Exception as e:
+            reply = f"LLM error: {e}"
 
     return jsonify({"reply": reply})
 
