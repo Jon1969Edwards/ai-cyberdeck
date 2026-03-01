@@ -2,6 +2,7 @@ from flask import Flask, jsonify, render_template_string, request, send_file
 import psutil
 import shutil
 import subprocess
+import threading
 import time
 import requests
 import io
@@ -569,6 +570,41 @@ def api_speech_to_text():
         result = rec.FinalResult()
         text = pyjson.loads(result).get('text', '')
     return jsonify({"text": text})
+
+
+@app.post("/api/handshake/start")
+def api_handshake_start():
+    global handshake_capture_process, handshake_capture_file
+    if handshake_capture_process and handshake_capture_process.poll() is None:
+        return jsonify({"status": "already running", "file": handshake_capture_file}), 409
+    # Put wlan1 into monitor mode
+    try:
+        subprocess.run(["sudo", "ip", "link", "set", "wlan1", "down"], check=True)
+        subprocess.run(["sudo", "iw", "wlan1", "set", "monitor", "none"], check=True)
+        subprocess.run(["sudo", "ip", "link", "set", "wlan1", "up"], check=True)
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500
+    # Start airodump-ng
+    timestamp = int(time.time())
+    capture_file = f"handshake_{timestamp}"
+    handshake_capture_file = capture_file
+    def run_airodump():
+        global handshake_capture_process
+        handshake_capture_process = subprocess.Popen([
+            "sudo", "airodump-ng", "wlan1", "-w", capture_file, "--output-format", "pcap"
+        ])
+    t = threading.Thread(target=run_airodump, daemon=True)
+    t.start()
+    return jsonify({"status": "started", "file": capture_file + ".pcap"})
+
+@app.post("/api/handshake/stop")
+def api_handshake_stop():
+    global handshake_capture_process
+    if handshake_capture_process and handshake_capture_process.poll() is None:
+        handshake_capture_process.terminate()
+        handshake_capture_process = None
+        return jsonify({"status": "stopped"})
+    return jsonify({"status": "not running"}), 404
 
 
 if __name__ == "__main__":
