@@ -9,6 +9,7 @@ import io
 from vosk import Model, KaldiRecognizer
 import wave
 import json as pyjson
+import os
 
 app = Flask(__name__)
 
@@ -84,6 +85,11 @@ HOME_PAGE = """
     <span id="handshakeStatus" class="muted"></span>
   </div>
 
+  <div class="card" style="margin-top:16px;">
+    <b>Captured Handshakes:</b>
+    <ul id="handshakeFiles"><li>Loading…</li></ul>
+  </div>
+
 <script>
 async function tick(){
   const r = await fetch('/api/status', {cache:'no-store'});
@@ -94,6 +100,7 @@ async function tick(){
   document.getElementById('disk').textContent = s.disk_used_gb + ' / ' + s.disk_total_gb + ' GB';
   document.getElementById('subtitle').textContent =
     'Uptime: ' + s.uptime + '  •  Host: ' + s.host + '  •  IP: ' + s.ip;
+  updateHandshakeFiles();
 }
 function toggleFullscreen(){
   if (!document.fullscreenElement) document.documentElement.requestFullscreen();
@@ -126,6 +133,24 @@ async function toggleHandshake() {
     btn.textContent = 'Start Handshake Capture';
     status.textContent = data.status || 'Stopped';
     btn.disabled = false;
+  }
+}
+async function updateHandshakeFiles() {
+  const ul = document.getElementById('handshakeFiles');
+  const r = await fetch('/api/handshakes');
+  const data = await r.json();
+  ul.innerHTML = '';
+  if (data.files.length === 0) {
+    ul.innerHTML = '<li>No handshakes found.</li>';
+  } else {
+    for (const f of data.files) {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = '/api/handshakes/' + encodeURIComponent(f);
+      a.textContent = f + ' (download)';
+      li.appendChild(a);
+      ul.appendChild(li);
+    }
   }
 }
 tick();
@@ -636,6 +661,21 @@ def api_handshake_stop():
         handshake_capture_process = None
         return jsonify({"status": "stopped"})
     return jsonify({"status": "not running"}), 404
+
+
+@app.get("/api/handshakes")
+def api_list_handshakes():
+    files = [f for f in os.listdir('.') if f.startswith('handshake_') and f.endswith('.pcap')]
+    files.sort(reverse=True)
+    return jsonify({"files": files})
+
+@app.get("/api/handshakes/<fname>")
+def api_download_handshake(fname):
+    if not (fname.startswith('handshake_') and fname.endswith('.pcap')):
+        return "Invalid file", 400
+    if not os.path.exists(fname):
+        return "Not found", 404
+    return send_file(fname, as_attachment=True)
 
 
 if __name__ == "__main__":
