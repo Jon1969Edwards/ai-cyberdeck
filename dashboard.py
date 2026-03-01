@@ -219,6 +219,7 @@ WIFI_PAGE = """
 <body>
   <h1>Wi-Fi</h1>
   <div class="muted">Safe scan: SSID / Signal / Channel / Security (using wlan1 if present)</div>
+  <div class="muted" style="color:red;font-weight:bold;">WARNING: Deauth attacks are illegal on networks you do not own or have permission to test!</div>
   {{ nav|safe }}
 
   <div class="row">
@@ -228,7 +229,7 @@ WIFI_PAGE = """
 
   <div class="card" style="margin-top:12px;">
     <table class="table" id="tbl">
-      <tr><th>SSID</th><th>Signal</th><th>Ch</th><th>Security</th></tr>
+      <tr><th>SSID</th><th>Signal</th><th>Ch</th><th>Security</th><th>BSSID</th><th>Deauth</th></tr>
     </table>
   </div>
 
@@ -237,7 +238,6 @@ function esc(s){
   return (s ?? '').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 }
 function barsFromSignalText(sigText){
-  // sigText like "72%" or "".
   const n = parseInt((sigText ?? '').toString().replace('%',''));
   if (Number.isNaN(n)) return {bars:"░░░░░░░░░░", num:null};
   const filled = Math.max(0, Math.min(10, Math.floor(n/10)));
@@ -245,7 +245,7 @@ function barsFromSignalText(sigText){
 }
 async function scan(){
   const tbl=document.getElementById('tbl');
-  tbl.innerHTML = '<tr><th>SSID</th><th>Signal</th><th>Ch</th><th>Security</th></tr>';
+  tbl.innerHTML = '<tr><th>SSID</th><th>Signal</th><th>Ch</th><th>Security</th><th>BSSID</th><th>Deauth</th></tr>';
   document.getElementById('count').textContent = 'Scanning…';
   const r = await fetch('/api/wifi/scan', {cache:'no-store'});
   const data = await r.json();
@@ -258,9 +258,28 @@ async function scan(){
       <td style="font-family:monospace">${esc(sig.bars)} ${sig.num ?? ''}${sig.num===null?'':'%'}</td>
       <td>${esc(n.chan)}</td>
       <td>${esc(n.security)}</td>
+      <td>${esc(n.bssid)}</td>
+      <td><button class="btn" onclick="confirmDeauth('${esc(n.bssid)}','${esc(n.chan)}','${esc(n.ssid)}')\">Deauth</button></td>
     `;
     tbl.appendChild(tr);
   }
+}
+async function confirmDeauth(bssid, chan, ssid) {
+  if (!confirm(`WARNING: Deauth attacks are illegal on networks you do not own or have permission to test!\n\nTarget: ${ssid}\nBSSID: ${bssid}\nChannel: ${chan}\n\nProceed?`)) return;
+  const btns = document.querySelectorAll('button');
+  btns.forEach(b=>b.disabled=true);
+  try {
+    const r = await fetch('/api/deauth', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({bssid: bssid, channel: chan})
+    });
+    const data = await r.json();
+    alert(data.status ? `Deauth sent!\n${data.status}` : `Error: ${data.error || 'Unknown error'}`);
+  } catch (e) {
+    alert('Error sending deauth: ' + e);
+  }
+  btns.forEach(b=>b.disabled=false);
 }
 scan();
 </script>
