@@ -429,15 +429,15 @@ def parse_nmcli_wifi() -> list[dict]:
     # Use wlan1 if it exists; otherwise fall back to whatever NM chooses.
     # We'll try wlan1 first, then fallback.
     cmd_wlan1 = [
-        "nmcli", "-t",
-        "-f", "SSID,SIGNAL,SECURITY,CHAN,BSSID",
-        "dev", "wifi", "list",
-        "ifname", "wlan1"
+      "nmcli", "-t",
+      "-f", "SSID,BSSID,SIGNAL,SECURITY,CHAN",
+      "dev", "wifi", "list",
+      "ifname", "wlan1"
     ]
     cmd_any = [
-        "nmcli", "-t",
-        "-f", "SSID,SIGNAL,SECURITY,CHAN,BSSID",
-        "dev", "wifi", "list"
+      "nmcli", "-t",
+      "-f", "SSID,BSSID,SIGNAL,SECURITY,CHAN",
+      "dev", "wifi", "list"
     ]
 
     try:
@@ -451,29 +451,23 @@ def parse_nmcli_wifi() -> list[dict]:
     networks: list[dict] = []
 
     for line in raw.splitlines():
-        parts = line.split(":")
-        if len(parts) < 4:
-            continue
+      parts = line.split(":")
+      if len(parts) < 5:
+        continue
 
-        ssid = parts[0].strip() or "<hidden>"
-        signal = parts[1].strip()
-        security = parts[2].strip() or "—"
-        chan = ":".join(parts[3:]).strip()
+      ssid = parts[0].strip() or "<hidden>"
+      bssid = parts[1].strip()
+      signal = parts[2].strip()
+      security = parts[3].strip() or "—"
+      chan = parts[4].strip()
 
-        # Add BSSID if available (nmcli -f BSSID,...)
-        bssid = None
-        if 'BSSID' in raw or len(parts) > 4:
-            bssid = parts[4].strip() if len(parts) > 4 else None
-        # For now, try to get BSSID with a second nmcli call if not present
-        # (or you can extend the nmcli call to include BSSID)
-
-        networks.append({
-            "ssid": ssid,
-            "signal": (signal + "%") if signal else "",
-            "security": security,
-            "chan": chan,
-            "bssid": bssid or "",
-        })
+      networks.append({
+        "ssid": ssid,
+        "signal": (signal + "%") if signal else "",
+        "security": security,
+        "chan": chan,
+        "bssid": bssid,
+      })
 
     def sig_num(n):
         try:
