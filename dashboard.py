@@ -1,11 +1,19 @@
-from flask import Flask, jsonify, render_template_string, request
+from flask import Flask, jsonify, render_template_string, request, send_file
 import psutil
 import shutil
 import subprocess
 import time
 import requests
+import io
+from vosk import Model, KaldiRecognizer
+import wave
+import json as pyjson
 
 app = Flask(__name__)
+
+# Load Vosk model once at startup
+VOSK_MODEL_PATH = "vosk-model-small-en-us-0.15"
+vosk_model = Model(VOSK_MODEL_PATH)
 
 # =========================
 # UI (plain strings; no f-strings to avoid brace issues)
@@ -542,6 +550,25 @@ def api_assistant():
             reply = f"LLM error: {e}"
 
     return jsonify({"reply": reply})
+
+
+@app.post("/api/speech-to-text")
+def api_speech_to_text():
+    if 'audio' not in request.files:
+        return jsonify({"error": "No audio file uploaded."}), 400
+    audio_file = request.files['audio']
+    with wave.open(audio_file, 'rb') as wf:
+        if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getframerate() != 16000:
+            return jsonify({"error": "Audio must be mono, 16-bit, 16kHz WAV."}), 400
+        rec = KaldiRecognizer(vosk_model, 16000)
+        while True:
+            data = wf.readframes(4000)
+            if len(data) == 0:
+                break
+            rec.AcceptWaveform(data)
+        result = rec.FinalResult()
+        text = pyjson.loads(result).get('text', '')
+    return jsonify({"text": text})
 
 
 if __name__ == "__main__":
