@@ -253,18 +253,25 @@ async function scan(){
   for (const n of data.networks){
     const tr=document.createElement('tr');
     const sig = barsFromSignalText(n.signal);
-    // Use raw values for onclick, and log for debug
-    console.log('SSID:', n.ssid, 'BSSID:', n.bssid, 'CHAN:', n.chan);
     tr.innerHTML = `
       <td>${esc(n.ssid)}</td>
       <td style="font-family:monospace">${esc(sig.bars)} ${sig.num ?? ''}${sig.num===null?'':'%'}</td>
       <td>${esc(n.chan)}</td>
       <td>${esc(n.security)}</td>
       <td>${esc(n.bssid)}</td>
-      <td><button class="btn" onclick="confirmDeauth('${n.bssid}','${n.chan}','${esc(n.ssid)}')\">Deauth</button></td>
+      <td><button class="btn deauth-btn" data-bssid="${encodeURIComponent(n.bssid)}" data-chan="${encodeURIComponent(n.chan)}" data-ssid="${esc(n.ssid)}">Deauth</button></td>
     `;
     tbl.appendChild(tr);
   }
+  // Attach event listeners after table is built
+  document.querySelectorAll('.deauth-btn').forEach(btn => {
+    btn.onclick = function() {
+      const bssid = decodeURIComponent(this.getAttribute('data-bssid'));
+      const chan = decodeURIComponent(this.getAttribute('data-chan'));
+      const ssid = this.getAttribute('data-ssid');
+      confirmDeauth(bssid, chan, ssid);
+    };
+  });
 }
 async function confirmDeauth(bssid, chan, ssid) {
   if (!confirm(`WARNING: Deauth attacks are illegal on networks you do not own or have permission to test!\n\nTarget: ${ssid}\nBSSID: ${bssid}\nChannel: ${chan}\n\nProceed?`)) return;
