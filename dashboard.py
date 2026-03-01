@@ -253,13 +253,15 @@ async function scan(){
   for (const n of data.networks){
     const tr=document.createElement('tr');
     const sig = barsFromSignalText(n.signal);
+    // Use raw values for onclick, and log for debug
+    console.log('SSID:', n.ssid, 'BSSID:', n.bssid, 'CHAN:', n.chan);
     tr.innerHTML = `
       <td>${esc(n.ssid)}</td>
       <td style="font-family:monospace">${esc(sig.bars)} ${sig.num ?? ''}${sig.num===null?'':'%'}</td>
       <td>${esc(n.chan)}</td>
       <td>${esc(n.security)}</td>
       <td>${esc(n.bssid)}</td>
-      <td><button class="btn" onclick="confirmDeauth('${esc(n.bssid)}','${esc(n.chan)}','${esc(n.ssid)}')\">Deauth</button></td>
+      <td><button class="btn" onclick="confirmDeauth('${n.bssid}','${n.chan}','${esc(n.ssid)}')\">Deauth</button></td>
     `;
     tbl.appendChild(tr);
   }
